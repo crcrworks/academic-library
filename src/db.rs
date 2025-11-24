@@ -1,7 +1,4 @@
-use sqlx::{
-    sqlite::{SqliteArguments, SqlitePoolOptions},
-    Sqlite, SqlitePool, Transaction,
-};
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::time::Duration;
 use tokio::sync::OnceCell;
 
@@ -14,7 +11,6 @@ pub struct DBOption {
 
 pub struct DB {
     pool: SqlitePool,
-    transaction: Option<Transaction<'static, Sqlite>>,
 }
 
 impl DB {
@@ -26,10 +22,7 @@ impl DB {
             .await
             .expect("Cannot connect to database");
 
-        DB {
-            pool,
-            transaction: None,
-        }
+        DB { pool }
     }
 
     pub async fn get() -> &'static DB {
@@ -47,17 +40,5 @@ impl DB {
 
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
-    }
-
-    pub async fn execute<'a>(
-        &mut self,
-        query: sqlx::query::Query<'a, Sqlite, SqliteArguments<'a>>,
-    ) -> Result<(), sqlx::error::Error> {
-        if let Some(ref mut t) = self.transaction {
-            query.execute(&mut **t).await?;
-        } else {
-            query.execute(&self.pool).await?;
-        }
-        Ok(())
     }
 }

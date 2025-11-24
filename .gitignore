@@ -8,4 +8,4 @@
 .env*
 !.env.example
 
-./db/data
+./db/data/*
