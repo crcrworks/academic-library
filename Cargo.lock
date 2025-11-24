@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "dioxus",
+ "dotenvy",
  "serde",
  "sqlx",
  "thiserror 2.0.17",
@@ -5019,6 +5020,8 @@ dependencies = [
  "sha2",
  "smallvec",
  "thiserror 2.0.17",
+ "tokio",
+ "tokio-stream",
  "tracing",
  "url",
 ]
@@ -5057,6 +5060,7 @@ dependencies = [
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.111",
+ "tokio",
  "url",
 ]
 

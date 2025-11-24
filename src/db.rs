@@ -34,6 +34,7 @@ impl DB {
 
     pub async fn get() -> &'static DB {
         DB.get_or_init(async || {
+            dotenvy::dotenv().expect("Failed to load dotenv");
             let db_url = std::env::var("DATABASE_URL").expect("Failed to get URL");
             let db_option = DBOption {
                 max_connections: 5,

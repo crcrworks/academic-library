@@ -1,0 +1,47 @@
+version: '3'
+
+env:
+  DB_CONTAINER: "books_db"
+
+tasks:
+  create:
+    desc: "データベースを作成"
+    cmd: docker compose run --rm {{.DB_CONTAINER}} sqlx database create
+
+  drop:
+    desc: "データベースを削除"
+    cmd: docker compose run --rm -it {{.DB_CONTAINER}} sqlx database drop
+
+  migrate:
+    desc: "マイグレーションを実行"
+    cmd: docker compose run --rm {{.DB_CONTAINER}} sqlx migrate run
+
+  migrate:add:
+    desc: "新しいマイグレーションファイルを作成"
+    preconditions:
+      - sh: "[ -n '{{.CLI_ARGS}}' ]"
+        msg: "マイグレーション名を指定してください: task db:migrate:add -- migration_name"
+    cmds:
+      - docker compose run --rm -it {{.DB_CONTAINER}} sqlx migrate add {{.CLI_ARGS}}
+
+  migrate:revert:
+    desc: "最新のマイグレーションを戻す"
+    cmds:
+      - docker compose run --rm --it {{.DB_CONTAINER}} sqlx migrate revert
+
+  migrate:info:
+    desc: "マイグレーション状況を確認"
+    cmds:
+      - docker compose run --rm {{.DB_CONTAINER}} sqlx migrate info
+
+  check:
+    desc: "データベース接続とスキーマをチェック"
+    cmds:
+      - docker exec {{.DB_CONTAINER}} sqlite3 {{.DATABASE_URL}} "SELECT 'Database connection OK';"
+      - docker exec {{.DB_CONTAINER}} sqlite3 {{.DATABASE_URL}} ".schema"
+
+  setup:
+    desc: "データベースの初期セットアップ（作成+マイグレーション）"
+    cmds:
+      - task: create
+      - task: migrate

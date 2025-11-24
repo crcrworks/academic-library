@@ -3,21 +3,19 @@ use dioxus::prelude::*;
 #[cfg(feature = "server")]
 mod db;
 
-mod actions;
+mod books;
+
+use crate::books::{load_books, Book};
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
 enum Route {
-    #[layout(Navbar)]
-    #[route("/")]
-    Home {},
-    #[route("/blog/:id")]
-    Blog { id: i32 },
+    #[route("/?:query")]
+    Home {query: String},
 }
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
-const HEADER_SVG: Asset = asset!("/assets/header.svg");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
@@ -36,94 +34,82 @@ fn App() -> Element {
 }
 
 #[component]
-pub fn Hero() -> Element {
-    rsx! {
-        div { id: "hero",
-            img { src: HEADER_SVG, id: "header" }
-            div { id: "links",
-                a { href: "https://dioxuslabs.com/learn/0.7/", "📚 Learn Dioxus" }
-                a { href: "https://dioxuslabs.com/awesome", "🚀 Awesome Dioxus" }
-                a { href: "https://github.com/dioxus-community/", "📡 Community Libraries" }
-                a { href: "https://github.com/DioxusLabs/sdk", "⚙️ Dioxus Development Kit" }
-                a { href: "https://marketplace.visualstudio.com/items?itemName=DioxusLabs.dioxus",
-                    "💫 VSCode Extension"
-                }
-                a { href: "https://discord.gg/XgGxMSkvUM", "👋 Community Discord" }
+fn Home(query: String) -> Element {
+    let mut query_signal = use_signal(|| query.clone());
+
+    let books_resource = use_resource(move || {
+        let query = query_signal();
+        async move { load_books(query).await }
+    });
+
+    let on_query_change = move |new_query: String| {
+        query_signal.set(new_query);
+    };
+
+    let content = match books_resource.read().as_ref() {
+        Some(Ok(books)) => {
+            rsx! {
+                Books { books: books.clone() }
             }
+        }
+        Some(Err(e)) => {
+            eprintln!("{e}");
+            rsx! {
+                div { "Error: {e}" }
+            }
+        }
+        None => rsx! {
+            div { "loading..." }
+        },
+    };
+
+    rsx! {
+        div { class: "flex flex-col gap-10",
+            div { SearchInput { query: query.clone(), on_query_change } }
+            div { class: "flex flex-col", {content} }
         }
     }
 }
 
-/// Home page
 #[component]
-fn Home() -> Element {
-    rsx! {
-        Hero {}
-        Echo {}
-    }
-}
-
-/// Blog page
-#[component]
-pub fn Blog(id: i32) -> Element {
-    rsx! {
-        div { id: "blog",
-
-            // Content
-            h1 { "This is blog #{id}!" }
-            p {
-                "In blog #{id}, we show how the Dioxus router works and how URL parameters can be passed as props to our route components."
-            }
-
-            // Navigation links
-            Link { to: Route::Blog { id: id - 1 }, "Previous" }
-            span { " <---> " }
-            Link { to: Route::Blog { id: id + 1 }, "Next" }
-        }
-    }
-}
-
-/// Shared navbar component.
-#[component]
-fn Navbar() -> Element {
-    rsx! {
-        div { id: "navbar",
-            Link { to: Route::Home {}, "Home" }
-            Link { to: Route::Blog { id: 1 }, "Blog" }
-        }
-
-        Outlet::<Route> {}
-    }
-}
-
-/// Echo component that demonstrates fullstack server functions.
-#[component]
-fn Echo() -> Element {
-    let mut response = use_signal(String::new);
-
-    rsx! {
-        div { id: "echo",
-            h4 { "ServerFn Echo" }
-            input {
-                placeholder: "Type here to echo...",
-                oninput: move |event| async move {
-                    let data = echo_server(event.value()).await.unwrap();
-                    response.set(data);
-                },
-            }
-
-            if !response().is_empty() {
-                p {
-                    "Server echoed: "
-                    i { "{response}" }
+fn Books(books: Vec<Book>) -> Element {
+    if books.is_empty() {
+        rsx! { "No books to show" }
+    } else {
+        rsx! {
+            div { class: "flex flex-wrap gap-4",
+                for book in books {
+                    div { class: "min-w-80 border rounded-lg p-4 shadow hover:shadow-lg transition-shadow",
+                        p { class: "text-sm text-gray-500", "ID: {book.id}" }
+                        p { class: "font-bold text-lg mt-2", {book.title} }
+                        p { class: "text-gray-700 mt-1", {book.author} }
+                        p { class: "text-gray-600 text-sm mt-1", {book.publisher} }
+                        p { class: "text-green-600 font-semibold mt-2", "¥{book.price}" }
+                        p { class: "text-xs text-gray-400 mt-1", "ISBN: {book.isbn}" }
+                    }
                 }
             }
         }
     }
 }
 
-/// Echo the user input on the server.
-#[post("/api/echo")]
-async fn echo_server(input: String) -> Result<String, ServerFnError> {
-    Ok(input)
+#[component]
+fn SearchInput(query: String, on_query_change: EventHandler<String>) -> Element {
+    let navigator = use_navigator();
+    let mut search_query = use_signal(|| query.clone());
+
+    let oninput = move |event: Event<FormData>| {
+        let new_query = event.value();
+        search_query.set(new_query.clone());
+        on_query_change.call(new_query.clone());
+        navigator.push(Route::Home { query: new_query });
+    };
+
+    rsx! {
+        input {
+            class: "border-1",
+            value: "{search_query}",
+            oninput
+        }
+    }
 }

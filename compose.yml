@@ -1,0 +1,11 @@
+services:
+  books_db:
+      container_name: books_db
+      build:
+        context: ./db
+        dockerfile: Dockerfile
+      volumes:
+        - ./db/data:/db/data
+        - ./db/migrations:/migrations
+      environment:
+        DATABASE_URL: ${DATABASE_URL}

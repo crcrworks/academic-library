@@ -1,0 +1,7 @@
+version: '3'
+silent: true
+
+includes:
+  db:
+    dir: ./db
+    taskfile: ./db/Taskfile.db.yml
