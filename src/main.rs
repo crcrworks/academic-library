@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use dioxus::prelude::*;
+use dioxus_sdk::time::use_debounce;
 
 #[cfg(feature = "server")]
 mod db;
@@ -98,11 +101,15 @@ fn SearchInput(query: String, on_query_change: EventHandler<String>) -> Element 
     let navigator = use_navigator();
     let mut search_query = use_signal(|| query.clone());
 
+    let mut debounce = use_debounce(Duration::from_secs(1), move |query: String| {
+        search_query.set(query.clone());
+        on_query_change.call(query.clone());
+        navigator.push(Route::Home { query });
+    });
+
     let oninput = move |event: Event<FormData>| {
         let new_query = event.value();
-        search_query.set(new_query.clone());
-        on_query_change.call(new_query.clone());
-        navigator.push(Route::Home { query: new_query });
+        debounce.action(new_query);
     };
 
     rsx! {

@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "dioxus",
+ "dioxus-sdk",
  "dotenvy",
  "serde",
  "sqlx",
@@ -1469,6 +1470,27 @@ dependencies = [
  "proc-macro2-diagnostics",
  "quote",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "dioxus-sdk"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79a653986dc3151f00a2be4cf04f83ec6c2af24b600ab926d5fcbcd159c6dadf"
+dependencies = [
+ "dioxus-sdk-time",
+]
+
+[[package]]
+name = "dioxus-sdk-time"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80c25ae93a3f72e734873b97fbd09d9b1b6adff97205fb0ffd8543e3564fb78e"
+dependencies = [
+ "dioxus",
+ "futures",
+ "gloo-timers",
+ "tokio",
 ]
 
 [[package]]

@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.5"
-dioxus = { version = "0.7.1", features = ["fullstack", "router"] }
+dioxus = { version = "0.7.0", features = ["fullstack", "router"] }
+dioxus-sdk = { version = "0.7.0", features = ["time"] }
 dotenvy = { version = "0.15.7", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"], optional = true }
