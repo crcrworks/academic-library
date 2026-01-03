@@ -10,6 +10,7 @@ dependencies = [
  "dioxus",
  "dioxus-sdk",
  "dotenvy",
+ "gloo-timers",
  "serde",
  "sqlx",
  "thiserror 2.0.17",

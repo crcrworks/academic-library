@@ -1,265 +1,267 @@
-You are an expert [0.7 Dioxus](https://dioxuslabs.com/learn/0.7) assistant. Dioxus 0.7 changes every api in dioxus. Only use this up to date documentation. `cx`, `Scope`, and `use_state` are gone
+# Agent Guidelines for Academic Library
 
-Provide concise code examples with detailed descriptions
+This is a Dioxus 0.7 fullstack web application for searching and displaying books from a SQLite database.
 
-# Dioxus Dependency
+## Build, Test, and Development Commands
 
-You can add Dioxus to your `Cargo.toml` like this:
-
-```toml
-[dependencies]
-dioxus = { version = "0.7.1" }
-
-[features]
-default = ["web", "webview", "server"]
-web = ["dioxus/web"]
-webview = ["dioxus/desktop"]
-server = ["dioxus/server"]
+### Development Server
+```bash
+dx serve                    # Start dev server (default: web platform)
+dx serve --platform web     # Explicitly serve web platform
+dx serve --platform desktop # Serve desktop platform
 ```
 
-# Launching your application
+### Rust Commands
+```bash
+cargo check                 # Check code for errors
+cargo build                 # Build the project
+cargo build --release       # Build optimized release
+cargo fmt                   # Format code with rustfmt
+cargo clippy               # Run linter
+cargo test                 # Run all tests
+cargo run                  # Run without hot-reloading
+```
 
-You need to create a main function that sets up the Dioxus runtime and mounts your root component.
+### Dioxus CLI Commands
+```bash
+dx build                   # Build project and assets
+dx bundle                  # Bundle into shippable object
+dx check                   # Check project for issues
+dx fmt                     # Format RSX code
+```
+
+### Database Commands (using Task)
+```bash
+task db:setup              # Initial setup (create + migrate)
+task db:create             # Create database
+task db:migrate            # Run migrations
+task db:migrate:add -- <name>  # Add new migration
+task db:migrate:revert     # Revert last migration
+task db:migrate:info       # Check migration status
+task db:check              # Check DB connection and schema
+task db:drop               # Drop database (interactive)
+```
+
+## Code Style Guidelines
+
+### Formatting
+- **Indentation**: Use TABS (not spaces) - project uses tab indentation consistently
+- **Line length**: Keep reasonable (rustfmt defaults)
+- **RSX formatting**: Use `dx fmt` for RSX code
+
+### Imports
+- Group imports: `std` → external crates → `dioxus::prelude::*` → local modules
+- Use `use dioxus::prelude::*;` as the standard Dioxus import
+- Feature-gate imports when needed: `#[cfg(feature = "server")]`
 
 ```rust
+use std::time::Duration;
+
 use dioxus::prelude::*;
+use serde::{Deserialize, Serialize};
 
-fn main() {
-	dioxus::launch(App);
-}
+#[cfg(feature = "server")]
+use sqlx::prelude::FromRow;
 
-#[component]
-fn App() -> Element {
-	rsx! { "Hello, Dioxus!" }
-}
+mod db;
+mod books;
 ```
 
-Then serve with `dx serve`:
+### Naming Conventions
+- **Components**: PascalCase, must start with capital letter or contain underscore
+- **Functions**: snake_case
+- **Constants**: SCREAMING_SNAKE_CASE for assets (`const FAVICON: Asset = asset!("/assets/favicon.ico")`)
+- **Types/Structs**: PascalCase
+- **Database tables**: lowercase snake_case
 
-```sh
-curl -sSL http://dioxus.dev/install.sh | sh
-dx serve
-```
-
-# UI with RSX
+### Type Annotations
+- Always derive `PartialEq` and `Clone` for component props
+- Use `#[cfg_attr(feature = "server", derive(FromRow))]` for database models
+- Prefer explicit types for clarity in function signatures
 
 ```rust
-rsx! {
-	div {
-		class: "container", // Attribute
-		color: "red", // Inline styles
-		width: if condition { "100%" }, // Conditional attributes
-		"Hello, Dioxus!"
-	}
-	// Prefer loops over iterators
-	for i in 0..5 {
-		div { "{i}" } // use elements or components directly in loops
-	}
-	if condition {
-		div { "Condition is true!" } // use elements or components directly in conditionals
-	}
-
-	{children} // Expressions are wrapped in brace
-	{(0..5).map(|i| rsx! { span { "Item {i}" } })} // Iterators must be wrapped in braces
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "server", derive(FromRow))]
+pub struct Book {
+	pub id: i32,
+	pub title: String,
+	// ...
 }
 ```
 
-# Assets
-
-The asset macro can be used to link to local files to use in your project. All links start with `/` and are relative to the root of your project.
+### Error Handling
+- Use `Result<T, E>` for fallible operations
+- Use `?` operator for error propagation
+- Use `expect()` with descriptive messages for initialization/setup code
+- Server functions return `Result<T>` (Dioxus handles the error type)
 
 ```rust
-rsx! {
-	img {
-		src: asset!("/assets/image.png"),
-		alt: "An image",
-	}
+#[server]
+pub async fn load_books(query: String) -> Result<Vec<Book>> {
+	let db = DB::get().await;
+	let books = sqlx::query_as::<_, Book>("SELECT ...")
+		.fetch_all(db.pool())
+		.await?;  // Use ? for propagation
+	Ok(books)
 }
 ```
 
-## Styles
+### Async/Await
+- Use `async fn` for asynchronous operations
+- Use `tokio` runtime (already configured)
+- Use `use_resource` hook for async data loading in components
+- Pattern match on resource state: `Some(Ok(data))`, `Some(Err(e))`, `None`
 
-The `document::Stylesheet` component will inject the stylesheet into the `<head>` of the document
+## Dioxus 0.7 Specific Patterns
 
-```rust
-rsx! {
-	document::Stylesheet {
-		href: asset!("/assets/styles.css"),
-	}
-}
-```
+### CRITICAL: Dioxus 0.7 Breaking Changes
+- **NO `cx` parameter** - removed in 0.7
+- **NO `Scope`** - removed in 0.7
+- **NO `use_state`** - use `use_signal` instead
+- All documentation and examples MUST use Dioxus 0.7 APIs only
 
-# Components
-
-Components are the building blocks of apps
-
-* Component are functions annotated with the `#[component]` macro.
-* The function name must start with a capital letter or contain an underscore.
-* A component re-renders only under two conditions:
-	1.  Its props change (as determined by `PartialEq`).
-	2.  An internal reactive state it depends on is updated.
-
+### Components
 ```rust
 #[component]
-fn Input(mut value: Signal<String>) -> Element {
+fn MyComponent(name: String, count: ReadOnlySignal<i32>) -> Element {
 	rsx! {
-		input {
-            value,
-			oninput: move |e| {
-				*value.write() = e.value();
-			},
-			onkeydown: move |e| {
-				if e.key() == Key::Enter {
-					value.write().clear();
-				}
-			},
-		}
+		div { "Hello {name}, count: {count}" }
 	}
 }
 ```
 
-Each component accepts function arguments (props)
+- Annotate with `#[component]` macro
+- Props must be owned values (use `String`, not `&str`)
+- Props must implement `PartialEq` and `Clone`
+- Use `ReadOnlySignal<T>` for reactive props
 
-* Props must be owned values, not references. Use `String` and `Vec<T>` instead of `&str` or `&[T]`.
-* Props must implement `PartialEq` and `Clone`.
-* To make props reactive and copy, you can wrap the type in `ReadOnlySignal`. Any reactive state like memos and resources that read `ReadOnlySignal` props will automatically re-run when the prop changes.
-
-# State
-
-A signal is a wrapper around a value that automatically tracks where it's read and written. Changing a signal's value causes code that relies on the signal to rerun.
-
-## Local State
-
-The `use_signal` hook creates state that is local to a single component. You can call the signal like a function (e.g. `my_signal()`) to clone the value, or use `.read()` to get a reference. `.write()` gets a mutable reference to the value.
-
-Use `use_memo` to create a memoized value that recalculates when its dependencies change. Memos are useful for expensive calculations that you don't want to repeat unnecessarily.
-
+### State Management
 ```rust
-#[component]
-fn Counter() -> Element {
-	let mut count = use_signal(|| 0);
-	let mut doubled = use_memo(move || count() * 2); // doubled will re-run when count changes because it reads the signal
+// Local state
+let mut count = use_signal(|| 0);
+count();           // Read (clone value)
+count.read();      // Read (borrow)
+*count.write() = 5;  // Write
+count.with_mut(|c| *c += 1);  // Mutate with closure
 
-	rsx! {
-		h1 { "Count: {count}" } // Counter will re-render when count changes because it reads the signal
-		h2 { "Doubled: {doubled}" }
-		button {
-			onclick: move |_| *count.write() += 1, // Writing to the signal rerenders Counter
-			"Increment"
-		}
-		button {
-			onclick: move |_| count.with_mut(|count| *count += 1), // use with_mut to mutate the signal
-			"Increment with with_mut"
-		}
-	}
-}
-```
+// Memoized values
+let doubled = use_memo(move || count() * 2);
 
-## Context API
-
-The Context API allows you to share state down the component tree. A parent provides the state using `use_context_provider`, and any child can access it with `use_context`
-
-```rust
-#[component]
-fn App() -> Element {
-	let mut theme = use_signal(|| "light".to_string());
-	use_context_provider(|| theme); // Provide a type to children
-	rsx! { Child {} }
-}
-
-#[component]
-fn Child() -> Element {
-	let theme = use_context::<Signal<String>>(); // Consume the same type
-	rsx! {
-		div {
-			"Current theme: {theme}"
-		}
-	}
-}
-```
-
-# Async
-
-For state that depends on an asynchronous operation (like a network request), Dioxus provides a hook called `use_resource`. This hook manages the lifecycle of the async task and provides the result to your component.
-
-* The `use_resource` hook takes an `async` closure. It re-runs this closure whenever any signals it depends on (reads) are updated
-* The `Resource` object returned can be in several states when read:
-1. `None` if the resource is still loading
-2. `Some(value)` if the resource has successfully loaded
-
-```rust
-let mut dog = use_resource(move || async move {
-	// api request
+// Async resources
+let books = use_resource(move || async move {
+	load_books(query()).await
 });
-
-match dog() {
-	Some(dog_info) => rsx! { Dog { dog_info } },
-	None => rsx! { "Loading..." },
-}
 ```
 
-# Routing
-
-All possible routes are defined in a single Rust `enum` that derives `Routable`. Each variant represents a route and is annotated with `#[route("/path")]`. Dynamic Segments can capture parts of the URL path as parameters by using `:name` in the route string. These become fields in the enum variant.
-
-The `Router<Route> {}` component is the entry point that manages rendering the correct component for the current URL.
-
-You can use the `#[layout(NavBar)]` to create a layout shared between pages and place an `Outlet<Route> {}` inside your layout component. The child routes will be rendered in the outlet.
-
+### RSX Syntax
 ```rust
-#[derive(Routable, Clone, PartialEq)]
-enum Route {
-	#[layout(NavBar)] // This will use NavBar as the layout for all routes
-		#[route("/")]
-		Home {},
-		#[route("/blog/:id")] // Dynamic segment
-		BlogPost { id: i32 },
-}
-
-#[component]
-fn NavBar() -> Element {
-	rsx! {
-		a { href: "/", "Home" }
-		Outlet<Route> {} // Renders Home or BlogPost
+rsx! {
+	div { class: "container",
+		// Prefer for loops over iterators
+		for book in books {
+			p { "{book.title}" }
+		}
+		
+		// Conditionals
+		if condition {
+			div { "True branch" }
+		}
+		
+		// Expressions in braces
+		{some_expression}
 	}
 }
+```
 
-#[component]
-fn App() -> Element {
-	rsx! { Router::<Route> {} }
+### Assets
+```rust
+const FAVICON: Asset = asset!("/assets/favicon.ico");
+
+rsx! {
+	document::Link { rel: "icon", href: FAVICON }
+	document::Stylesheet { href: asset!("/assets/main.css") }
 }
 ```
 
-```toml
-dioxus = { version = "0.7.1", features = ["router"] }
-```
+## Fullstack Features
 
-# Fullstack
-
-Fullstack enables server rendering and ipc calls. It uses Cargo features (`server` and a client feature like `web`) to split the code into a server and client binaries.
-
-```toml
-dioxus = { version = "0.7.1", features = ["fullstack"] }
-```
-
-## Server Functions
-
-Use the `#[post]` / `#[get]` macros to define an `async` function that will only run on the server. On the server, this macro generates an API endpoint. On the client, it generates a function that makes an HTTP request to that endpoint.
+### Server Functions
+Use `#[server]` macro to define backend-only functions:
 
 ```rust
-#[post("/api/double/:path/&query")]
-async fn double_server(number: i32, path: String, query: i32) -> Result<i32, ServerFnError> {
-	tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-	Ok(number * 2)
+#[server]
+pub async fn load_books(query: String) -> Result<Vec<Book>> {
+	// This code ONLY runs on server
+	let db = DB::get().await;
+	// ... database queries
+	Ok(books)
 }
 ```
 
-## Hydration
+- Automatically creates API endpoint on server
+- Generates client-side function that makes HTTP request
+- Use for database access, API calls, authentication
 
-Hydration is the process of making a server-rendered HTML page interactive on the client. The server sends the initial HTML, and then the client-side runs, attaches event listeners, and takes control of future rendering.
+### Feature Flags
+```toml
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+server = ["dep:dotenvy", "dep:sqlx", "dioxus/server"]
+```
 
-### Errors
-The initial UI rendered by the component on the client must be identical to the UI rendered on the server.
+Use `#[cfg(feature = "server")]` to conditionally compile server-only code:
+```rust
+#[cfg(feature = "server")]
+mod db;  // Only compiled with server feature
+```
 
-* Use the `use_server_future` hook instead of `use_resource`. It runs the future on the server, serializes the result, and sends it to the client, ensuring the client has the data immediately for its first render.
-* Any code that relies on browser-specific APIs (like accessing `localStorage`) must be run *after* hydration. Place this code inside a `use_effect` hook.
+### Routing
+```rust
+#[derive(Debug, Clone, Routable, PartialEq)]
+#[rustfmt::skip]
+enum Route {
+	#[route("/?:query")]
+	Home { query: String },
+}
+
+// In component
+rsx! { Router::<Route> {} }
+```
+
+## Project-Specific Patterns
+
+### Database Access
+- Use singleton pattern with `OnceCell` for DB connection pool
+- Always use parameterized queries (never string concatenation)
+- Use `sqlx::query_as` with type annotations
+
+```rust
+sqlx::query_as::<_, Book>(
+	"SELECT id, title, author, publisher, price, isbn FROM books WHERE title LIKE ?"
+)
+.bind(format!("%{}%", query))
+.fetch_all(db.pool())
+.await?
+```
+
+### Environment Variables
+- Store in `.env` file (gitignored, see `.env.example`)
+- Load with `dotenvy::dotenv()` on server startup
+- Required: `DATABASE_URL=sqlite:db/books.db`
+
+### Component Organization
+- Main app in `src/main.rs`
+- Domain models in separate files (`src/books.rs`, `src/db.rs`)
+- Feature-gate server-side code appropriately
+
+## Common Pitfalls
+
+1. **Don't use old Dioxus 0.5/0.6 patterns** - no `cx`, `Scope`, or `use_state`
+2. **Don't forget feature gates** - server code must be behind `#[cfg(feature = "server")]`
+3. **Don't use `&str` in props** - use `String` (owned values only)
+4. **Don't forget to derive PartialEq and Clone** on prop types
+5. **Don't use tabs and spaces mixed** - this project uses TABS
+6. **Don't concatenate SQL strings** - always use parameterized queries
